@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsRequestedRecord() {
+      return signedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    function ownsStoredRecord() {
+      return signedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    function ownsSubject(subjectId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/subjects/$(subjectId))
+        && get(/databases/$(database)/documents/subjects/$(subjectId)).data.userId == request.auth.uid;
+    }
+
+    function ownsTask(taskId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/tasks/$(taskId))
+        && get(/databases/$(database)/documents/tasks/$(taskId)).data.userId == request.auth.uid;
+    }
+
+    function validScheduleReferences() {
+      return request.resource.data.subjectId is string
+        && ownsSubject(request.resource.data.subjectId)
+        && (
+          !('taskId' in request.resource.data)
+          || request.resource.data.taskId == ''
+          || ownsTask(request.resource.data.taskId)
+        );
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId;
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && resource.data.uid == userId
+        && request.resource.data.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']);
+      allow delete: if false;
+    }
+
+    match /subjects/{subjectId} {
+      allow read, delete: if ownsStoredRecord();
+      allow create: if ownsRequestedRecord();
+      allow update: if ownsStoredRecord() && ownsRequestedRecord();
+    }
+
+    match /tasks/{taskId} {
+      allow read, delete: if ownsStoredRecord();
+      allow create: if ownsRequestedRecord();
+      allow update: if ownsStoredRecord() && ownsRequestedRecord();
+    }
+
+    match /schedules/{sessionId} {
+      allow read, delete: if ownsStoredRecord();
+      allow create: if ownsRequestedRecord()
+        && validScheduleReferences()
+        && request.resource.data.startMinutes is int
+        && request.resource.data.endMinutes is int
+        && request.resource.data.endMinutes > request.resource.data.startMinutes;
+      allow update: if ownsStoredRecord()
+        && ownsRequestedRecord()
+        && validScheduleReferences()
+        && request.resource.data.startMinutes is int
+        && request.resource.data.endMinutes is int
+        && request.resource.data.endMinutes > request.resource.data.startMinutes;
+    }
+
+    match /freeTime/{slotId} {
+      allow read, delete: if ownsStoredRecord();
+      allow create: if ownsRequestedRecord()
+        && request.resource.data.startMinutes is int
+        && request.resource.data.endMinutes is int
+        && request.resource.data.isRecurring is bool
+        && (
+          request.resource.data.isRecurring == true
+            && request.resource.data.dayOfWeek is int
+            && request.resource.data.dayOfWeek >= 1
+            && request.resource.data.dayOfWeek <= 7
+          || request.resource.data.isRecurring == false
+            && request.resource.data.date is string
+        )
+        && request.resource.data.endMinutes > request.resource.data.startMinutes;
+      allow update: if ownsStoredRecord()
+        && ownsRequestedRecord()
+        && request.resource.data.startMinutes is int
+        && request.resource.data.endMinutes is int
+        && request.resource.data.isRecurring is bool
+        && (
+          request.resource.data.isRecurring == true
+            && request.resource.data.dayOfWeek is int
+            && request.resource.data.dayOfWeek >= 1
+            && request.resource.data.dayOfWeek <= 7
+          || request.resource.data.isRecurring == false
+            && request.resource.data.date is string
+        )
+        && request.resource.data.endMinutes > request.resource.data.startMinutes;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

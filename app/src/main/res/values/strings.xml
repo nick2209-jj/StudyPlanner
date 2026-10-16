@@ -1,0 +1,45 @@
+<resources>
+    <string name="app_name">StudyPlanner</string>
+    <string name="studyplanner">StudyPlanner</string>
+    <string name="organize_focus_achieve">Organize . Focus . Achieve</string>
+    <string name="email_address">Email Address</string>
+    <string name="password">Password</string>
+    <string name="forgot_password">Forgot Password?</string>
+    <string name="login">LOGIN</string>
+    <string name="don_t_have_an_account">Don\'t have an account?</string>
+    <string name="sign_up">SignUp</string>
+    <string name="back">Back</string>
+    <string name="create_account">Create Account</string>
+    <string name="signup_subtitle">Create an account and start organizing your study journey</string>
+    <string name="full_name">Full Name</string>
+    <string name="confirm_password">Confirm Password</string>
+    <string name="already_have_account">Already have account?</string>
+    <string name="home">Home</string>
+    <string name="tasks">Tasks</string>
+    <string name="schedule">Schedule</string>
+    <string name="settings">Settings</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="good_morning_nikharv">Good Morning, Nikharv 👋</string>
+    <string name="wednesday_09_september">Wednesday, 09 September</string>
+    <string name="today_s_progress">Today\'s Progress</string>
+    <string name="_3_of_5_tasks_completed">3 of 5 tasks completed</string>
+    <string name="_0">0%</string>
+    <string name="_4">4</string>
+    <string name="subjects">Subjects</string>
+    <string name="_2">2</string>
+    <string name="pending">Pending</string>
+    <string name="add_task">Add Task</string>
+    <string name="add_schedule">Add Schedule</string>
+    <string name="preferences">Preferences</string>
+    <string name="account">Account</string>
+    <string name="log_out">Log Out</string>
+    <string name="studyplanner_v1_0_0">StudyPlanner v1.0.0</string>
+    <string name="notifications">Notifications</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="study_reminders">Study Reminders</string>
+    <string name="edit_profile">Edit Profile</string>
+    <string name="change_password">Change Password</string>
+    <string name="about_studyplanner">About StudyPlanner</string>
+    <string name="free_time">Free Time</string>
+</resources>
