@@ -1,8 +1,10 @@
 package com.example.studyplanner.repository
 
 import com.example.studyplanner.model.ScheduleSession
+import com.example.studyplanner.notifications.StudyReminderScheduler
 import com.example.studyplanner.scheduler.StudyInterval
 import com.example.studyplanner.scheduler.StudyScheduleEngine
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -87,6 +89,7 @@ class ScheduleRepository {
             transaction.set(ref, session.copy(id = ref.id, userId = uid, generatedActivityKey = ""))
             true
         }.await()
+        refreshStudyReminders()
     }
 
     suspend fun deleteSession(sessionId: String) {
@@ -100,6 +103,7 @@ class ScheduleRepository {
             transaction.delete(ref)
             true
         }.await()
+        refreshStudyReminders()
     }
 
     suspend fun saveGeneratedSessions(proposal: List<ScheduleSession>) {
@@ -161,6 +165,13 @@ class ScheduleRepository {
             }
             true
         }.await()
+        refreshStudyReminders()
+    }
+
+    private fun refreshStudyReminders() {
+        StudyReminderScheduler.refreshInBackground(
+            FirebaseApp.getInstance().applicationContext
+        )
     }
 
     private fun validate(session: ScheduleSession) {

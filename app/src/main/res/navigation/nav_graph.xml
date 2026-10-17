@@ -34,4 +34,14 @@
         android:name="com.example.studyplanner.FreeTimeFragment"
         android:label="Available study time" />
 
+    <fragment
+        android:id="@+id/profileFragment"
+        android:name="com.example.studyplanner.ProfileFragment"
+        android:label="@string/profile_title">
+        <argument
+            android:name="editMode"
+            android:defaultValue="false"
+            app:argType="boolean" />
+    </fragment>
+
 </navigation>

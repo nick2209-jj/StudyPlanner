@@ -15,6 +15,7 @@ import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -33,6 +34,7 @@ import com.example.studyplanner.repository.TaskRepository
 import com.example.studyplanner.scheduler.SchedulingResult
 import com.example.studyplanner.scheduler.StudyScheduleEngine
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -382,9 +384,23 @@ class ScheduleFragment : Fragment() {
 
     private fun showError(prefix: String, exception: Exception) {
         if (_binding != null) {
+            Log.e(TAG, prefix, exception)
+            val details = when {
+                exception is FirebaseFirestoreException &&
+                    exception.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION &&
+                    exception.message?.contains("index", ignoreCase = true) == true ->
+                    getString(R.string.firestore_index_building)
+                exception is FirebaseFirestoreException &&
+                    exception.code == FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+                    getString(R.string.firestore_access_denied)
+                exception is FirebaseFirestoreException &&
+                    exception.code == FirebaseFirestoreException.Code.UNAVAILABLE ->
+                    getString(R.string.firestore_connection_error)
+                else -> getString(R.string.operation_try_again)
+            }
             Toast.makeText(
                 requireContext(),
-                "$prefix: ${exception.message ?: "Unknown error"}",
+                "$prefix. $details",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -401,4 +417,8 @@ class ScheduleFragment : Fragment() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val TAG = "ScheduleFragment"
+    }
 }

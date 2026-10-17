@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F7FF"
+    android:background="@color/screen_background"
     android:fillViewport="true"
     android:overScrollMode="never"
     tools:context=".SettingsFragment">
@@ -22,7 +22,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/settings"
-            android:textColor="#2D1B4E"
+            android:textColor="@color/text_primary"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -112,7 +112,7 @@
             android:layout_marginTop="26dp"
             android:layout_marginBottom="8dp"
             android:text="@string/preferences"
-            android:textColor="#546E7A"
+            android:textColor="@color/text_secondary"
             android:textSize="13sp"
             android:textStyle="bold" />
 
@@ -120,7 +120,7 @@
             android:id="@+id/preferencesCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardBackgroundColor="#FFFFFF"
+            app:cardBackgroundColor="@color/surface"
             app:cardCornerRadius="18dp"
             app:cardElevation="1dp">
 
@@ -134,13 +134,13 @@
                     android:id="@+id/rowNotifications"
                     layout="@layout/item_settings_row" />
 
-                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0EDF7" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
 
                 <include
                     android:id="@+id/rowDarkMode"
                     layout="@layout/item_settings_row" />
 
-                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0EDF7" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
 
                 <include
                     android:id="@+id/rowReminders"
@@ -159,7 +159,7 @@
             android:layout_marginTop="22dp"
             android:layout_marginBottom="8dp"
             android:text="@string/account"
-            android:textColor="#546E7A"
+            android:textColor="@color/text_secondary"
             android:textSize="13sp"
             android:textStyle="bold" />
 
@@ -167,7 +167,7 @@
             android:id="@+id/accountCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardBackgroundColor="#FFFFFF"
+            app:cardBackgroundColor="@color/surface"
             app:cardCornerRadius="18dp"
             app:cardElevation="1dp">
 
@@ -181,19 +181,19 @@
                     android:id="@+id/rowEditProfile"
                     layout="@layout/item_settings_row" />
 
-                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0EDF7" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
 
                 <include
                     android:id="@+id/rowChangePassword"
                     layout="@layout/item_settings_row" />
 
-                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0EDF7" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
 
                 <include
                     android:id="@+id/rowAbout"
                     layout="@layout/item_settings_row" />
 
-                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0EDF7" />
+                <View android:layout_width="match_parent" android:layout_height="1dp" android:background="@color/divider" />
 
                 <include
                     android:id="@+id/rowFreeTime"
@@ -214,7 +214,7 @@
             android:textColor="#E53935"
             android:textSize="15sp"
             android:textStyle="bold"
-            app:backgroundTint="#FFFFFF"
+            app:backgroundTint="@color/surface"
             app:strokeColor="#F5C6C6"
             app:strokeWidth="1dp"
             app:cornerRadius="16dp"

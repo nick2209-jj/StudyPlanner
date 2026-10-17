@@ -18,6 +18,7 @@ import android.widget.Spinner
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.studyplanner.adapter.FreeTimeAdapter
 import com.example.studyplanner.databinding.FragmentFreeTimeBinding
@@ -52,6 +53,7 @@ class FreeTimeFragment : Fragment() {
         binding.rvFreeTime.layoutManager = LinearLayoutManager(requireContext())
         binding.rvFreeTime.adapter = adapter
         binding.fabAddFreeTime.setOnClickListener { showSlotEditor(null) }
+        binding.btnBackFreeTime.setOnClickListener { findNavController().navigateUp() }
         renderState()
         listener = repository.observeSlots(
             onUpdate = { slots ->

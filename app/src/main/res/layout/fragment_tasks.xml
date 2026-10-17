@@ -5,7 +5,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F7FF"
+    android:background="@color/screen_background"
     tools:context=".TasksFragment">
 
     <!-- Header -->
@@ -27,7 +27,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="My Tasks"
-            android:textColor="#2D1B4E"
+            android:textColor="@color/text_primary"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -37,7 +37,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="3 of 5 completed today"
-            android:textColor="#546E7A"
+            android:textColor="@color/text_secondary"
             android:textSize="14sp" />
 
         <!-- Slim progress bar under header -->
@@ -95,7 +95,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:text="No tasks yet"
-            android:textColor="#2D1B4E"
+            android:textColor="@color/text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -104,7 +104,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="Tap + to add your first task"
-            android:textColor="#546E7A"
+            android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
     </LinearLayout>

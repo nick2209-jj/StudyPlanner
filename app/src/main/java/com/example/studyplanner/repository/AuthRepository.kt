@@ -17,10 +17,26 @@ class AuthRepository {
     suspend fun signup(name: String, email: String, password: String): Result<Unit> {
         return try {
             val result = auth.createUserWithEmailAndPassword(email, password).await()
-            val uid = result.user?.uid ?: error("Firebase did not return a user after signup")
-            val user = User(uid = uid, name = name, email = email)
-            usersRef.document(uid).set(user).await()
+            val createdUser = result.user ?: error("Firebase did not return a user after signup")
+            val user = User(uid = createdUser.uid, name = name, email = email)
+            try {
+                usersRef.document(createdUser.uid).set(user).await()
+            } catch (e: CancellationException) {
+                auth.signOut()
+                throw e
+            } catch (e: Exception) {
+                try {
+                    createdUser.delete().await()
+                } catch (cleanupException: Exception) {
+                    e.addSuppressed(cleanupException)
+                } finally {
+                    auth.signOut()
+                }
+                throw e
+            }
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -30,6 +46,8 @@ class AuthRepository {
         return try {
             auth.signInWithEmailAndPassword(email, password).await()
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -54,7 +72,19 @@ class AuthRepository {
     suspend fun updateCurrentUserName(name: String) {
         require(name.isNotBlank()) { "Name is required" }
         val user = requireNotNull(auth.currentUser) { "You must be signed in to update your profile" }
-        usersRef.document(user.uid).update("name", name.trim()).await()
+        val profileRef = usersRef.document(user.uid)
+        val profileSnapshot = profileRef.get().await()
+        if (profileSnapshot.exists()) {
+            profileRef.update("name", name.trim()).await()
+        } else {
+            profileRef.set(
+                User(
+                    uid = user.uid,
+                    name = name.trim(),
+                    email = user.email.orEmpty()
+                )
+            ).await()
+        }
         user.updateProfile(
             UserProfileChangeRequest.Builder().setDisplayName(name.trim()).build()
         ).await()

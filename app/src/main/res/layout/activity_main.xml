@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F7FF">
+    android:background="@color/screen_background">
 
     <ScrollView
         android:layout_width="0dp"
@@ -45,7 +45,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="@string/studyplanner"
-                android:textColor="#2D1B4E"
+                android:textColor="@color/text_primary"
                 android:textSize="30sp"
                 android:textStyle="bold" />
 
@@ -55,7 +55,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="@string/organize_focus_achieve"
-                android:textColor="#546E7A"
+                android:textColor="@color/text_secondary"
                 android:textSize="15sp" />
 
             <Space
@@ -77,7 +77,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
                     android:inputType="textEmailAddress"
-                    android:textColor="#2D1B4E"
+                    android:textColor="@color/text_primary"
                     android:textSize="16sp" />
 
             </com.google.android.material.textfield.TextInputLayout>
@@ -102,7 +102,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
                     android:inputType="textPassword"
-                    android:textColor="#2D1B4E"
+                    android:textColor="@color/text_primary"
                     android:textSize="16sp" />
 
             </com.google.android.material.textfield.TextInputLayout>
@@ -148,7 +148,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/don_t_have_an_account"
-                    android:textColor="#546E7A"
+                    android:textColor="@color/text_secondary"
                     android:textSize="14sp" />
 
                 <TextView

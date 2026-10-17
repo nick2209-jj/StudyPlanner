@@ -1,6 +1,8 @@
 package com.example.studyplanner.repository
 
 import com.example.studyplanner.model.Subject
+import com.example.studyplanner.notifications.StudyReminderScheduler
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
@@ -47,6 +49,9 @@ class SubjectRepository {
             }.commit().await()
         }
         document.delete().await()
+        StudyReminderScheduler.refreshInBackground(
+            FirebaseApp.getInstance().applicationContext
+        )
     }
 
     suspend fun getSubjects(): List<Subject> {

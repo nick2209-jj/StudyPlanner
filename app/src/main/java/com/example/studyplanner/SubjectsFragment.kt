@@ -11,9 +11,11 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.studyplanner.adapter.SubjectAdapter
 import com.example.studyplanner.databinding.FragmentSubjectsBinding
@@ -46,6 +48,7 @@ class SubjectsFragment : Fragment() {
         binding.rvSubjects.layoutManager = LinearLayoutManager(requireContext())
         binding.rvSubjects.adapter = adapter
         binding.fabAddSubject.setOnClickListener { showSubjectEditor(null) }
+        binding.btnBackSubjects.setOnClickListener { findNavController().navigateUp() }
         renderState()
         listener = repository.observeSubjects(
             onUpdate = { subjects ->
@@ -75,7 +78,7 @@ class SubjectsFragment : Fragment() {
             existing?.totalHoursPerWeek?.toString().orEmpty(),
             InputType.TYPE_CLASS_NUMBER
         )
-        val priorities = listOf("HIGH", "MEDIUM", "LOW")
+        val priorities = listOf("LOW", "MEDIUM", "HIGH")
         val priority = Spinner(requireContext()).apply {
             adapter = ArrayAdapter(
                 requireContext(),
@@ -84,7 +87,18 @@ class SubjectsFragment : Fragment() {
             )
             setSelection(priorities.indexOf(existing?.priority ?: "MEDIUM").coerceAtLeast(0))
         }
-        listOf(name, code, hours, priority).forEach {
+        val priorityTitle = TextView(requireContext()).apply {
+            text = getString(R.string.study_priority)
+            setTextColor(requireContext().getColor(R.color.text_primary))
+            textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        val priorityExplanation = TextView(requireContext()).apply {
+            text = getString(R.string.study_priority_explanation)
+            setTextColor(requireContext().getColor(R.color.text_secondary))
+            textSize = 13f
+        }
+        listOf(name, code, hours, priorityTitle, priorityExplanation, priority).forEach {
             content.addView(
                 it,
                 LinearLayout.LayoutParams(

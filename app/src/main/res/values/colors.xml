@@ -3,4 +3,10 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="bottom_nav_color">#6C4AB6</color>
+    <color name="screen_background">#F8F7FF</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#EDE7F6</color>
+    <color name="text_primary">#2D1B4E</color>
+    <color name="text_secondary">#546E7A</color>
+    <color name="divider">#F0EDF7</color>
 </resources>
