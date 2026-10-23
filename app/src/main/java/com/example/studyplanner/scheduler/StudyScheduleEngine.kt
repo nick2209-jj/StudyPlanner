@@ -7,6 +7,7 @@ import com.example.studyplanner.model.Subject
 import com.example.studyplanner.model.Task
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import kotlin.math.ceil
 
 data class StudyInterval(val startMinutes: Int, val endMinutes: Int) {
     val durationMinutes: Int get() = endMinutes - startMinutes
@@ -14,7 +15,9 @@ data class StudyInterval(val startMinutes: Int, val endMinutes: Int) {
 
 data class SchedulingResult(
     val proposedSessions: List<ScheduleSession>,
-    val unscheduledActivities: List<String>
+    val unscheduledActivities: List<String>,
+    val restDays: List<LocalDate> = emptyList(),
+    val breaksByDate: Map<LocalDate, List<StudyInterval>> = emptyMap()
 )
 
 class StudyScheduleEngine {
@@ -54,18 +57,21 @@ class StudyScheduleEngine {
             )
         }
 
-        val availableMinutes = windowsByDate.values.flatten().sumOf { it.durationMinutes }
+        val availableMinutes = windowsByDate.values.flatten()
+            .sumOf(::effectiveStudyMinutes)
+        val restDays = windowsByDate.filterValues { it.isEmpty() }.keys.sorted()
         val capacityUnits = availableMinutes / TIME_UNIT_MINUTES
         if (capacityUnits == 0) {
             return SchedulingResult(
                 emptyList(),
                 buildCandidates(today, subjects, tasks, existingSessions).map { it.title } +
-                    unmatchedTasks(subjects, tasks, existingSessions)
+                    unmatchedTasks(subjects, tasks, existingSessions),
+                restDays
             )
         }
 
         val candidates = buildCandidates(today, subjects, tasks, existingSessions)
-        val selected = chooseByKnapsack(candidates, capacityUnits)
+        val selected = selectCandidates(candidates, capacityUnits)
         val selectedKeys = selected.mapTo(mutableSetOf()) { it.key }
         val unscheduled = candidates.filter { it.key !in selectedKeys }
             .map { "${it.title} (not enough available study time)" }
@@ -73,34 +79,84 @@ class StudyScheduleEngine {
             .apply { addAll(unmatchedTasks(subjects, tasks, existingSessions)) }
 
         val remaining = windowsByDate.mapValues { (_, intervals) -> intervals.toMutableList() }
+        val breaksByDate = mutableMapOf<LocalDate, MutableList<StudyInterval>>()
+        val dailySessionCounts = dates.associateWith { date ->
+            existingSessions.count { it.sessionDate == date.toString() }
+        }.toMutableMap()
+        val datesByString = dates.associateBy(LocalDate::toString)
+        val existingByDate = existingSessions
+            .filter { it.sessionDate in datesByString }
+            .groupBy { datesByString.getValue(it.sessionDate) }
+        val continuousStudyMinutes = dates.associateWith { date ->
+            trailingContinuousStudyMinutes(existingByDate[date].orEmpty())
+        }.toMutableMap()
+        val lastStudyEnd = existingByDate.mapNotNull { (date, sessions) ->
+            sessions.maxByOrNull { it.endMinutes }?.let { date to it.endMinutes }
+        }.toMap().toMutableMap()
+        val subjectDailyCounts = existingSessions
+            .mapNotNull { session ->
+                datesByString[session.sessionDate]?.let { date ->
+                    (date to session.subjectId) to 1
+                }
+            }
+            .groupingBy { it.first }
+            .eachCount()
+            .toMutableMap()
         val placed = mutableListOf<ScheduleSession>()
-        selected.sortedWith(
-            compareByDescending<Candidate> { it.value }
-                .thenByDescending { it.urgency }
-                .thenBy { it.key }
-        ).forEach { candidate ->
-            val placement = findEarliestFit(remaining, dates, candidate.durationMinutes)
+        interleaveBySubject(selected).forEach { candidate ->
+            val placement = findBestFit(
+                remaining = remaining,
+                dates = dates,
+                candidate = candidate,
+                dailySessionCounts = dailySessionCounts,
+                subjectDailyCounts = subjectDailyCounts,
+                continuousStudyMinutes = continuousStudyMinutes,
+                lastStudyEnd = lastStudyEnd
+            )
             if (placement == null) {
                 unscheduled += "${candidate.title} (no single available slot is long enough)"
             } else {
-                val (date, intervalIndex) = placement
-                val interval = remaining.getValue(date)[intervalIndex]
-                val end = interval.startMinutes + candidate.durationMinutes
-                remaining.getValue(date)[intervalIndex] =
+                val date = placement.date
+                val interval = remaining.getValue(date)[placement.intervalIndex]
+                val sessionStart = interval.startMinutes +
+                    if (placement.needsBreak) BREAK_MINUTES else 0
+                val end = sessionStart + candidate.durationMinutes
+                if (placement.needsBreak) {
+                    breaksByDate.getOrPut(date) { mutableListOf() } += StudyInterval(
+                        interval.startMinutes,
+                        sessionStart
+                    )
+                    continuousStudyMinutes[date] = 0
+                } else if (lastStudyEnd[date] != interval.startMinutes) {
+                    continuousStudyMinutes[date] = 0
+                }
+                remaining.getValue(date)[placement.intervalIndex] =
                     StudyInterval(end, interval.endMinutes)
+                dailySessionCounts[date] = (dailySessionCounts[date] ?: 0) + 1
+                val subjectDay = date to candidate.subject.id
+                subjectDailyCounts[subjectDay] = (subjectDailyCounts[subjectDay] ?: 0) + 1
+                continuousStudyMinutes[date] =
+                    (continuousStudyMinutes[date] ?: 0) + candidate.durationMinutes
+                lastStudyEnd[date] = end
                 placed += ScheduleSession(
                     subjectId = candidate.subject.id,
                     subjectName = candidate.subject.name,
                     taskId = candidate.task?.id.orEmpty(),
                     sessionDate = date.toString(),
-                    startMinutes = interval.startMinutes,
+                    startMinutes = sessionStart,
                     endMinutes = end,
                     description = candidate.title,
-                    generatedActivityKey = "${monday}:${candidate.key}"
+                    generatedActivityKey = "v2:$monday:${candidate.key}",
+                    breakBeforeMinutes = if (placement.needsBreak) BREAK_MINUTES else 0
                 )
             }
         }
-        return SchedulingResult(placed, unscheduled)
+        return SchedulingResult(
+            proposedSessions = placed,
+            unscheduledActivities = unscheduled,
+            restDays = restDays,
+            breaksByDate = breaksByDate.mapValues { (_, breaks) -> breaks.toList() }
+        )
     }
 
     fun hasOverlap(first: StudyInterval, second: StudyInterval): Boolean =
@@ -175,7 +231,14 @@ class StudyScheduleEngine {
             }
 
         subjects.sortedBy { it.id }.forEach { subject ->
-            val targetMinutes = subject.totalHoursPerWeek.coerceAtLeast(0) * 60
+            val priorityMultiplier = when (subject.priority.uppercase()) {
+                "HIGH" -> 2.0
+                "MEDIUM" -> 1.5
+                else -> 1.0
+            }
+            val targetMinutes = ceil(
+                subject.totalHoursPerWeek.coerceAtLeast(0) * 60 * priorityMultiplier
+            ).toInt()
             val remainingMinutes = targetMinutes -
                 (completedMinutesBySubject[subject.id] ?: 0)
             val blockCount = (remainingMinutes.coerceAtLeast(0) + STANDARD_BLOCK_MINUTES - 1) /
@@ -195,6 +258,64 @@ class StudyScheduleEngine {
             }
         }
         return candidates
+    }
+
+    private fun selectCandidates(
+        candidates: List<Candidate>,
+        capacityUnits: Int
+    ): List<Candidate> {
+        val blockUnits = STANDARD_BLOCK_MINUTES / TIME_UNIT_MINUTES
+        val coverageSlots = capacityUnits / blockUnits
+        if (coverageSlots == 0 || candidates.isEmpty()) return emptyList()
+
+        val coverageCandidates = candidates
+            .groupBy { it.subject.id }
+            .values
+            .mapNotNull { subjectCandidates ->
+                subjectCandidates.maxWithOrNull(
+                    compareBy<Candidate> { it.value }
+                        .thenBy { it.urgency }
+                        .thenBy { it.key }
+                )
+            }
+            .sortedWith(
+                compareByDescending<Candidate> { priorityValue(it.subject.priority) }
+                    .thenByDescending { it.value }
+                    .thenBy { it.subject.id }
+            )
+            .take(coverageSlots)
+
+        val selectedKeys = coverageCandidates.mapTo(mutableSetOf()) { it.key }
+        val remainingCapacity = capacityUnits - coverageCandidates.size * blockUnits
+        val additional = chooseByKnapsack(
+            candidates.filterNot { it.key in selectedKeys },
+            remainingCapacity
+        )
+        return coverageCandidates + additional
+    }
+
+    private fun interleaveBySubject(candidates: List<Candidate>): List<Candidate> {
+        val bySubject = candidates
+            .groupBy { it.subject.id }
+            .mapValues { (_, subjectCandidates) ->
+                subjectCandidates.sortedWith(
+                    compareByDescending<Candidate> { it.value }
+                        .thenByDescending { it.urgency }
+                        .thenBy { it.key }
+                )
+            }
+        val subjectOrder = bySubject.keys.sortedWith(
+            compareByDescending<String> { subjectId ->
+                priorityValue(bySubject.getValue(subjectId).first().subject.priority)
+            }.thenBy { it }
+        )
+        val result = mutableListOf<Candidate>()
+        repeat(bySubject.values.maxOfOrNull { it.size } ?: 0) { round ->
+            subjectOrder.forEach { subjectId ->
+                bySubject.getValue(subjectId).getOrNull(round)?.let(result::add)
+            }
+        }
+        return result
     }
 
     private fun unmatchedTasks(
@@ -247,22 +368,68 @@ class StudyScheduleEngine {
         return selected
     }
 
-    /**
-     * Candidates are value-ordered, then assigned to the earliest interval that
-     * can contain the whole block. Greedy placement is deterministic, not globally optimal.
-     */
-    private fun findEarliestFit(
+    private fun findBestFit(
         remaining: Map<LocalDate, MutableList<StudyInterval>>,
         dates: List<LocalDate>,
-        durationMinutes: Int
-    ): Pair<LocalDate, Int>? {
-        for (date in dates) {
+        candidate: Candidate,
+        dailySessionCounts: Map<LocalDate, Int>,
+        subjectDailyCounts: Map<Pair<LocalDate, String>, Int>,
+        continuousStudyMinutes: Map<LocalDate, Int>,
+        lastStudyEnd: Map<LocalDate, Int>
+    ): Fit? =
+        dates.mapNotNull { date ->
             val intervals = remaining.getValue(date)
-            val index = intervals.indexOfFirst { it.durationMinutes >= durationMinutes }
-            if (index >= 0) return date to index
+            val index = intervals.indexOfFirst { interval ->
+                val needsBreak = (continuousStudyMinutes[date] ?: 0) >=
+                    MAX_CONTINUOUS_STUDY_MINUTES &&
+                    lastStudyEnd[date] == interval.startMinutes
+                interval.durationMinutes >= candidate.durationMinutes +
+                    if (needsBreak) BREAK_MINUTES else 0
+            }
+            if (index < 0) {
+                null
+            } else {
+                val interval = intervals[index]
+                val needsBreak = (continuousStudyMinutes[date] ?: 0) >=
+                    MAX_CONTINUOUS_STUDY_MINUTES &&
+                    lastStudyEnd[date] == interval.startMinutes
+                Fit(date, index, needsBreak)
+            }
+        }.minWithOrNull(
+            compareBy<Fit> { subjectDailyCounts[it.date to candidate.subject.id] ?: 0 }
+                .thenBy { dailySessionCounts[it.date] ?: 0 }
+                .thenBy { it.date }
+        )
+
+    private fun effectiveStudyMinutes(interval: StudyInterval): Int {
+        var studyBlocks = 0
+        while (
+            (studyBlocks + 1) * STANDARD_BLOCK_MINUTES +
+            (studyBlocks / 2) * BREAK_MINUTES <= interval.durationMinutes
+        ) {
+            studyBlocks++
         }
-        return null
+        return studyBlocks * STANDARD_BLOCK_MINUTES
     }
+
+    private fun trailingContinuousStudyMinutes(sessions: List<ScheduleSession>): Int {
+        var total = 0
+        var nextStart: Int? = null
+        sessions.sortedByDescending { it.startMinutes }.forEach { session ->
+            if (nextStart != null && session.endMinutes != nextStart) return total
+            val duration = session.endMinutes - session.startMinutes
+            if (duration <= 0) return@forEach
+            total += duration
+            nextStart = session.startMinutes
+        }
+        return total
+    }
+
+    private data class Fit(
+        val date: LocalDate,
+        val intervalIndex: Int,
+        val needsBreak: Boolean
+    )
 
     private fun mergeIntervals(intervals: List<StudyInterval>): List<StudyInterval> {
         val merged = mutableListOf<StudyInterval>()
@@ -362,6 +529,8 @@ class StudyScheduleEngine {
     companion object {
         const val TIME_UNIT_MINUTES = 15
         const val STANDARD_BLOCK_MINUTES = 60
+        const val MAX_CONTINUOUS_STUDY_MINUTES = 120
+        const val BREAK_MINUTES = 15
         const val MINUTES_PER_DAY = 24 * 60
     }
 }

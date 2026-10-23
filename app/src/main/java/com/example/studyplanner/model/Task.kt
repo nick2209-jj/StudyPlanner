@@ -8,7 +8,9 @@ data class Task(
     val priority: Priority = Priority.MEDIUM,
     var isCompleted: Boolean = false,
     val description: String = "",
-    val userId: String = ""
+    val userId: String = "",
+    val scheduleSessionId: String = "",
+    val scheduleDate: String = ""
 )
 
 enum class Priority { HIGH, MEDIUM, LOW }

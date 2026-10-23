@@ -4,6 +4,7 @@ import com.example.studyplanner.model.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.example.studyplanner.validation.TaskValidator
 import kotlinx.coroutines.tasks.await
 
 class TaskRepository {
@@ -16,12 +17,14 @@ class TaskRepository {
     private fun tasksRef() = firestore.collection("tasks")
 
     suspend fun addTask(task: Task) {
+        TaskValidator.validate(task)
         val uid = currentUid()
         val document = tasksRef().document()
         document.set(task.copy(id = document.id, userId = uid)).await()
     }
 
     suspend fun updateTask(task: Task) {
+        TaskValidator.validate(task)
         val uid = currentUid()
         require(task.userId == uid) { "Cannot update another user's task" }
         tasksRef().document(task.id).set(task).await()

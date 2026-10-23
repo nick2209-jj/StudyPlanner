@@ -186,7 +186,7 @@ class MainActivity : AppCompatActivity() {
     private fun validateInputs(): Boolean {
         var valid = true
         val email = binding.etEmail.text?.toString()?.trim()
-        val password = binding.etPassword.text?.toString()?.trim()
+        val password = binding.etPassword.text?.toString()
 
         // Use isNullOrEmpty() for the email check
         // Use ?: "" (Elvis operator) to provide an empty string to the matcher if email is null

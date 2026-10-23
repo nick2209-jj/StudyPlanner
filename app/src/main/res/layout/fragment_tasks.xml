@@ -36,9 +36,21 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="3 of 5 completed today"
+            android:text="0 of 0 completed"
             android:textColor="@color/text_secondary"
             android:textSize="14sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnTaskDate"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Today"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            app:cornerRadius="12dp"
+            app:strokeColor="@color/divider" />
 
         <!-- Slim progress bar under header -->
 
@@ -91,6 +103,7 @@
             android:textSize="44sp" />
 
         <TextView
+            android:id="@+id/tvEmptyTasksTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
@@ -100,6 +113,7 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/tvEmptyTasksMessage"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"

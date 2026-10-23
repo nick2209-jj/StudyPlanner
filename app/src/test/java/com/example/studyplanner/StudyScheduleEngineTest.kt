@@ -139,6 +139,91 @@ class StudyScheduleEngineTest {
     }
 
     @Test
+    fun schedulesEverySubjectAndGivesHigherPrioritySubjectsMoreWeeklyTime() {
+        val subjects = listOf(
+            subject.copy(id = "low", name = "Low", totalHoursPerWeek = 2, priority = "LOW"),
+            subject.copy(id = "medium", name = "Medium", totalHoursPerWeek = 2, priority = "MEDIUM"),
+            subject.copy(id = "high", name = "High", totalHoursPerWeek = 2, priority = "HIGH")
+        )
+        val availability = (0L..2L).map { offset ->
+            val date = monday.plusDays(offset)
+            FreeTimeSlot(
+                isRecurring = false,
+                date = date.toString(),
+                startMinutes = 9 * 60,
+                endMinutes = 13 * 60
+            )
+        }
+
+        val result = engine.generateWeek(
+            monday,
+            subjects,
+            emptyList(),
+            availability,
+            emptyList(),
+            today = monday
+        )
+
+        val sessionsBySubject = result.proposedSessions.groupBy { it.subjectId }
+        assertEquals(setOf("low", "medium", "high"), sessionsBySubject.keys)
+        assertEquals(2, sessionsBySubject.getValue("low").size)
+        assertEquals(3, sessionsBySubject.getValue("medium").size)
+        assertEquals(4, sessionsBySubject.getValue("high").size)
+        assertTrue(
+            result.proposedSessions.groupBy { it.sessionDate }.values.all { daySessions ->
+                daySessions.map { it.subjectId }.distinct().size >= 2
+            }
+        )
+        assertTrue(
+            sessionsBySubject.values.all { sessions ->
+                sessions.map { it.sessionDate }.distinct().size >= 2
+            }
+        )
+    }
+
+    @Test
+    fun insertsFifteenMinuteBreaksAfterEachTwoContinuousStudyHours() {
+        val sixHourTarget = subject.copy(totalHoursPerWeek = 6)
+        val result = engine.generateWeek(
+            monday,
+            listOf(sixHourTarget),
+            emptyList(),
+            listOf(weeklySlot(9 * 60, 15 * 60)),
+            emptyList(),
+            today = monday
+        )
+
+        val sessions = result.proposedSessions.sortedBy { it.startMinutes }
+        val breaks = result.breaksByDate.getValue(monday)
+        assertEquals(5, sessions.size)
+        assertEquals(2, breaks.size)
+        breaks.forEach { pause ->
+            assertEquals(StudyScheduleEngine.BREAK_MINUTES, pause.durationMinutes)
+            assertTrue(sessions.any { it.endMinutes == pause.startMinutes })
+            assertTrue(sessions.any { it.startMinutes == pause.endMinutes })
+        }
+        assertTrue(result.unscheduledActivities.isNotEmpty())
+    }
+
+    @Test
+    fun identifiesDaysWithNoFreeTimeAsRestDays() {
+        val result = engine.generateWeek(
+            monday,
+            listOf(subject.copy(totalHoursPerWeek = 2)),
+            emptyList(),
+            listOf(
+                weeklySlot(9 * 60, 10 * 60),
+                weeklySlot(9 * 60, 10 * 60).copy(dayOfWeek = monday.plusDays(2).dayOfWeek.value)
+            ),
+            emptyList(),
+            today = monday
+        )
+
+        assertTrue(monday.plusDays(1) in result.restDays)
+        assertFalse(monday.plusDays(2) in result.restDays)
+    }
+
+    @Test
     fun recurringAndDateSpecificFreeTimeConflictsAreDetected() {
         val recurring = weeklySlot(9 * 60, 10 * 60)
         val sameDay = FreeTimeSlot(

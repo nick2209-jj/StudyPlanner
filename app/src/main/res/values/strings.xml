@@ -21,22 +21,42 @@
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="good_morning_nikharv">Good Morning, Nikharv 👋</string>
+    <string name="welcome_back">Welcome back</string>
     <string name="wednesday_09_september">Wednesday, 09 September</string>
     <string name="today_s_progress">Today\'s Progress</string>
     <string name="_3_of_5_tasks_completed">3 of 5 tasks completed</string>
+    <string name="today_progress_summary">%1$d of %2$d tasks completed today</string>
+    <string name="no_tasks_scheduled_today">No tasks or study sessions scheduled today</string>
+    <string name="pending_today">Pending today</string>
+    <string name="todays_sessions">Today\'s sessions</string>
+    <string name="no_upcoming_sessions">No upcoming study sessions</string>
+    <string name="add_session_to_schedule">Add a session in your schedule</string>
+    <string name="daily_inspiration">Daily inspiration</string>
+    <string name="quote_daily_source">Quote of the day · StudyPlanner </string>
+    <string name="quote_offline_source">Offline inspiration · StudyPlanner</string>
+    <string name="add_available_study_times">Add your available study times</string>
+    <string name="today_availability_summary">%1$d study-time %2$s available today · Tap to manage</string>
+    <string name="loading_today_progress">Loading today\'s progress…</string>
+    <string name="progress_unavailable">Today\'s progress is unavailable</string>
+    <string name="loading_schedule">Loading your schedule…</string>
+    <string name="schedule_unavailable">Could not load your schedule</string>
+    <string name="loading_availability">Loading today\'s availability…</string>
+    <string name="availability_unavailable">Could not load availability</string>
+    <string name="not_available">—</string>
     <string name="_0">0%</string>
     <string name="_4">4</string>
     <string name="subjects">Subjects</string>
     <string name="_2">2</string>
     <string name="pending">Pending</string>
     <string name="add_task">Add Task</string>
+    <string name="no_tasks_today">No tasks today</string>
+    <string name="no_tasks_for_date">No tasks for this date</string>
     <string name="add_schedule">Add Schedule</string>
     <string name="preferences">Preferences</string>
     <string name="account">Account</string>
     <string name="log_out">Log Out</string>
     <string name="studyplanner_v1_0_0">StudyPlanner v1.0.0</string>
     <string name="notifications">Notifications</string>
-    <string name="dark_mode">Dark Mode</string>
     <string name="study_reminders">Study Reminders</string>
     <string name="edit_profile">Edit Profile</string>
     <string name="change_password">Change Password</string>
@@ -69,4 +89,8 @@
     <string name="firestore_access_denied">Your account does not have permission for this operation.</string>
     <string name="firestore_connection_error">Check your internet connection and try again.</string>
     <string name="operation_try_again">Please try again. If this continues, contact support.</string>
+    <plurals name="study_time_slots">
+        <item quantity="one">slot</item>
+        <item quantity="other">slots</item>
+    </plurals>
 </resources>

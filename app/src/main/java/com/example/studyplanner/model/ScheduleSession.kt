@@ -10,5 +10,7 @@ data class ScheduleSession(
     val startMinutes: Int = 0,
     val endMinutes: Int = 0,
     val description: String = "",
-    val generatedActivityKey: String = ""
+    val generatedActivityKey: String = "",
+    val breakBeforeMinutes: Int = 0,
+    var isCompleted: Boolean = false
 )

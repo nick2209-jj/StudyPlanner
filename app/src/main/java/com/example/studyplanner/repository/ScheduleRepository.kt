@@ -59,6 +59,14 @@ class ScheduleRepository {
     suspend fun saveManualSession(session: ScheduleSession) {
         val uid = currentUid()
         validate(session)
+        require(session.subjectId in ownedDocumentIds("subjects", uid)) {
+            "Select one of your saved subjects"
+        }
+        if (session.taskId.isNotBlank()) {
+            require(session.taskId in ownedDocumentIds("tasks", uid)) {
+                "Select one of your saved tasks"
+            }
+        }
         val ref = if (session.id.isBlank()) sessionsRef().document()
         else sessionsRef().document(session.id)
         val subjectRef = firestore.collection("subjects").document(session.subjectId)
@@ -73,8 +81,8 @@ class ScheduleRepository {
                 com.example.studyplanner.model.Subject::class.java
             )
             check(subject?.userId == uid) { "Select one of your saved subjects" }
-            val existingDocument = transaction.get(ref)
             if (session.id.isNotBlank()) {
+                val existingDocument = transaction.get(ref)
                 check(existingDocument.getString("userId") == uid) {
                     "Schedule session not found for the current user"
                 }
@@ -106,67 +114,139 @@ class ScheduleRepository {
         refreshStudyReminders()
     }
 
+    suspend fun updateSessionCompletion(sessionId: String, isCompleted: Boolean) {
+        val uid = currentUid()
+        val ref = sessionsRef().document(sessionId)
+        firestore.runTransaction { transaction ->
+            val existing = transaction.get(ref)
+            check(existing.getString("userId") == uid) {
+                "Schedule session not found for the current user"
+            }
+            check(!existing.getString("generatedActivityKey").isNullOrBlank()) {
+                "Only generated study sessions can be completed from the task list"
+            }
+            transaction.update(ref, "isCompleted", isCompleted)
+            true
+        }.await()
+    }
+
     suspend fun saveGeneratedSessions(proposal: List<ScheduleSession>) {
         if (proposal.isEmpty()) return
         require(proposal.size <= 400) { "Schedule proposal contains too many sessions to save at once" }
         val uid = currentUid()
         proposal.forEach(::validate)
+        require(proposal.all { it.generatedActivityKey.isNotBlank() }) {
+            "Generated session is missing its activity key"
+        }
+        require(proposal.map { it.generatedActivityKey }.distinct().size == proposal.size) {
+            "The study plan contains duplicate activities"
+        }
+        val ownedSubjects = ownedDocumentIds("subjects", uid)
+        val ownedTasks = ownedDocumentIds("tasks", uid)
+        require(proposal.all { it.subjectId in ownedSubjects }) {
+            "A proposed session refers to a subject that is not yours"
+        }
+        require(proposal.all { it.taskId.isBlank() || it.taskId in ownedTasks }) {
+            "A proposed session refers to a task that is not yours"
+        }
+        val proposalIntervals = mutableMapOf<String, MutableList<StudyInterval>>()
+        proposal.forEach { session ->
+            val interval = StudyInterval(session.startMinutes, session.endMinutes)
+            val dayIntervals = proposalIntervals.getOrPut(session.sessionDate) { mutableListOf() }
+            check(dayIntervals.none { engine.hasOverlap(interval, it) }) {
+                "The proposed sessions overlap each other"
+            }
+            dayIntervals += interval
+        }
         val start = proposal.minOf { it.sessionDate }
         val end = proposal.maxOf { it.sessionDate }
         val query = sessionsRef().whereEqualTo("userId", uid)
             .whereGreaterThanOrEqualTo("sessionDate", start)
             .whereLessThanOrEqualTo("sessionDate", end)
-        val existingRefs = query.get().await().documents.map { it.reference }
+        val existingDocuments = query.get().await().documents
+        val existingRefs = existingDocuments.map { it.reference }
+        val existingGeneratedRefs = existingDocuments.mapNotNull { document ->
+            document.getString("generatedActivityKey")
+                ?.takeIf(String::isNotBlank)
+                ?.let { it to document.reference }
+        }.toMap()
 
-        firestore.runTransaction { transaction ->
-            val existing = existingRefs.mapNotNull { existingRef ->
-                transaction.get(existingRef).toObject(ScheduleSession::class.java)
-            }
-                .toMutableList()
-            val proposalIntervals = mutableMapOf<String, MutableList<StudyInterval>>()
-            val references = proposal.map { session ->
-                val stableId = UUID.nameUUIDFromBytes(
-                    "$uid|${session.generatedActivityKey}".toByteArray(Charsets.UTF_8)
-                ).toString()
-                sessionsRef().document(stableId)
-            }
-            val existingGeneratedRefs = references.map { transaction.get(it) }
-            proposal.forEach { session ->
-                check(session.generatedActivityKey.isNotBlank()) {
-                    "Generated session is missing its activity key"
+        proposal.chunked(MAX_GENERATED_SESSIONS_PER_TRANSACTION).forEach { chunk ->
+            firestore.runTransaction { transaction ->
+                val existing = existingRefs.mapNotNull { existingRef ->
+                    transaction.get(existingRef).toObject(ScheduleSession::class.java)
                 }
-                check(existing.none { it.generatedActivityKey == session.generatedActivityKey }) {
-                    "This generated activity is already saved"
+                val references = chunk.map { session ->
+                    val stableId = UUID.nameUUIDFromBytes(
+                        "$uid|${session.generatedActivityKey}".toByteArray(Charsets.UTF_8)
+                    ).toString()
+                    existingGeneratedRefs[session.generatedActivityKey]
+                        ?: sessionsRef().document("${uid}_$stableId")
                 }
-                val interval = StudyInterval(session.startMinutes, session.endMinutes)
-                check(existing.none {
-                    it.sessionDate == session.sessionDate &&
-                        engine.hasOverlap(interval, StudyInterval(it.startMinutes, it.endMinutes))
-                }) { "The proposal conflicts with an existing schedule session" }
-                val dayIntervals = proposalIntervals.getOrPut(session.sessionDate) { mutableListOf() }
-                check(dayIntervals.none { engine.hasOverlap(interval, it) }) {
-                    "The proposed sessions overlap each other"
+                val existingGenerated = references.map { transaction.get(it) }
+                val subjects = chunk.map { it.subjectId }.distinct().associateWith { subjectId ->
+                    transaction.get(firestore.collection("subjects").document(subjectId))
+                        .getString("userId")
                 }
-                dayIntervals += interval
-                val subjectRef = firestore.collection("subjects").document(session.subjectId)
-                check(transaction.get(subjectRef).getString("userId") == uid) {
-                    "A proposed session refers to a subject that is not yours"
-                }
-            }
+                val tasks = chunk.mapNotNull { it.taskId.takeIf(String::isNotBlank) }
+                    .distinct()
+                    .associateWith { taskId ->
+                        transaction.get(firestore.collection("tasks").document(taskId))
+                            .getString("userId")
+                    }
 
-            existingGeneratedRefs.forEach { document ->
-                check(document.exists().not()) {
-                    "A session with this generated ID already exists; nothing was overwritten"
+                chunk.forEachIndexed { index, session ->
+                    val generatedDocument = existingGenerated[index]
+                    val expectedSession = session.copy(
+                        id = references[index].id,
+                        userId = uid,
+                        isCompleted = generatedDocument
+                            .takeIf { it.exists() }
+                            ?.getBoolean("isCompleted")
+                            ?: false
+                    )
+                    if (generatedDocument.exists()) {
+                        check(
+                            generatedDocument.toObject(ScheduleSession::class.java) ==
+                                expectedSession
+                        ) {
+                            "A session with this generated ID already exists; nothing was overwritten"
+                        }
+                    }
+                    val interval = StudyInterval(session.startMinutes, session.endMinutes)
+                    check(existing.none {
+                        it.generatedActivityKey != session.generatedActivityKey &&
+                            it.sessionDate == session.sessionDate &&
+                            engine.hasOverlap(interval, StudyInterval(it.startMinutes, it.endMinutes))
+                    }) { "The proposal conflicts with an existing schedule session" }
+                    check(subjects[session.subjectId] == uid) {
+                        "A proposed session refers to a subject that is not yours"
+                    }
+                    check(session.taskId.isBlank() || tasks[session.taskId] == uid) {
+                        "A proposed session refers to a task that is not yours"
+                    }
                 }
+
+                chunk.forEachIndexed { index, session ->
+                    if (!existingGenerated[index].exists()) {
+                        val ref = references[index]
+                        transaction.set(ref, session.copy(id = ref.id, userId = uid))
+                    }
+                }
+                true
             }
-            proposal.forEachIndexed { index, session ->
-                val ref = references[index]
-                transaction.set(ref, session.copy(id = ref.id, userId = uid))
-            }
-            true
-        }.await()
+                .await()
+        }
         refreshStudyReminders()
     }
+
+    private suspend fun ownedDocumentIds(collection: String, uid: String): Set<String> =
+        firestore.collection(collection)
+            .whereEqualTo("userId", uid)
+            .get()
+            .await()
+            .documents
+            .mapTo(mutableSetOf()) { it.id }
 
     private fun refreshStudyReminders() {
         StudyReminderScheduler.refreshInBackground(
@@ -184,5 +264,9 @@ class ScheduleRepository {
         require(engine.isValidInterval(StudyInterval(session.startMinutes, session.endMinutes))) {
             "The end time must be later than the start time"
         }
+    }
+
+    private companion object {
+        const val MAX_GENERATED_SESSIONS_PER_TRANSACTION = 3
     }
 }

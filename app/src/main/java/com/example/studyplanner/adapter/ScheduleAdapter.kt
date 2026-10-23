@@ -26,7 +26,11 @@ class ScheduleAdapter(
 
         binding.tvStartTime.text = formatTime(item.startMinutes)
         binding.tvSubjectName.text = item.subjectName
-        binding.tvTopic.text = item.description
+        binding.tvTopic.text = if (item.breakBeforeMinutes > 0) {
+            "${item.breakBeforeMinutes}-minute break before · ${item.description}"
+        } else {
+            item.description
+        }
         binding.tvDuration.text =
             "${formatTime(item.startMinutes)} – ${formatTime(item.endMinutes)}"
 

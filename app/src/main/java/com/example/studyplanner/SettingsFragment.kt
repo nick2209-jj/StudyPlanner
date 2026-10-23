@@ -2,6 +2,7 @@ package com.example.studyplanner
 
 import android.app.AlertDialog
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -12,7 +13,6 @@ import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
@@ -30,7 +30,10 @@ class SettingsFragment : Fragment() {
     private val binding get() = _binding!!
     private val authRepository = AuthRepository()
     private val settings by lazy {
-        requireContext().getSharedPreferences("study_planner_settings", 0)
+        requireContext().getSharedPreferences(
+            StudyPlannerApplication.SETTINGS_FILE,
+            Context.MODE_PRIVATE
+        )
     }
     private var pendingNotificationPreference: String? = null
     private val requestNotificationPermission =
@@ -122,18 +125,6 @@ class SettingsFragment : Fragment() {
                 binding.rowReminders.rowSwitch.isChecked = false
                 StudyReminderScheduler.cancelAll(requireContext())
             }
-        }
-
-        // Dark Mode — toggle row
-        binding.rowDarkMode.rowLabel.text = getString(R.string.dark_mode)
-        binding.rowDarkMode.rowIcon.setImageResource(R.drawable.ic_dark_mode)
-        binding.rowDarkMode.rowArrow.visibility = View.GONE
-        binding.rowDarkMode.rowSwitch.visibility = View.VISIBLE
-        binding.rowDarkMode.rowSwitch.isChecked = settings.getBoolean("dark_mode", false)
-        applyDarkMode(binding.rowDarkMode.rowSwitch.isChecked)
-        binding.rowDarkMode.rowSwitch.setOnCheckedChangeListener { _, enabled ->
-            settings.edit().putBoolean("dark_mode", enabled).apply()
-            applyDarkMode(enabled)
         }
 
         // Reminders — toggle row
@@ -234,15 +225,6 @@ class SettingsFragment : Fragment() {
                 }
             }
             .show()
-    }
-
-    private fun applyDarkMode(enabled: Boolean) {
-        settings.edit()
-            .putBoolean(StudyPlannerApplication.DARK_MODE_KEY, enabled)
-            .apply()
-        AppCompatDelegate.setDefaultNightMode(
-            if (enabled) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
-        )
     }
 
     private fun enableNotificationPreference(key: String) {

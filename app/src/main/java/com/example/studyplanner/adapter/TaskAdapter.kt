@@ -36,16 +36,24 @@ class TaskAdapter(
         applyCompletedStyle(binding, task.isCompleted)
         binding.root.setOnClickListener { onTaskClick(task) }
 
-        binding.tvPriorityTag.text = when (task.priority) {
-            Priority.HIGH -> "High"
-            Priority.MEDIUM -> "Medium"
-            Priority.LOW -> "Low"
+        binding.tvPriorityTag.text = if (task.scheduleSessionId.isNotBlank()) {
+            "Scheduled"
+        } else {
+            when (task.priority) {
+                Priority.HIGH -> "High"
+                Priority.MEDIUM -> "Medium"
+                Priority.LOW -> "Low"
+            }
         }
         binding.tvPriorityTag.setBackgroundColor(
-            when (task.priority) {
-                Priority.HIGH -> Color.parseColor("#E53935")
-                Priority.MEDIUM -> Color.parseColor("#FB8C00")
-                Priority.LOW -> Color.parseColor("#43A047")
+            if (task.scheduleSessionId.isNotBlank()) {
+                Color.parseColor("#6C4AB6")
+            } else {
+                when (task.priority) {
+                    Priority.HIGH -> Color.parseColor("#E53935")
+                    Priority.MEDIUM -> Color.parseColor("#FB8C00")
+                    Priority.LOW -> Color.parseColor("#43A047")
+                }
             }
         )
 

@@ -18,6 +18,7 @@ import android.widget.Toast
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.studyplanner.adapter.DayAdapter
 import com.example.studyplanner.adapter.ScheduleAdapter
@@ -75,6 +76,9 @@ class ScheduleFragment : Fragment() {
         binding.btnNextWeek.setOnClickListener { changeWeek(1) }
         binding.fabAddSchedule.setOnClickListener { showSessionEditor(null) }
         binding.btnGenerateSchedule.setOnClickListener { generateSchedule() }
+        binding.btnAddFreeTime.setOnClickListener {
+            findNavController().navigate(R.id.freeTimeFragment)
+        }
 
         subjectListener = subjectRepository.observeSubjects(
             onUpdate = {
@@ -308,9 +312,28 @@ class ScheduleFragment : Fragment() {
 
     private fun showSchedulePreview(result: SchedulingResult) {
         if (result.proposedSessions.isEmpty()) {
-            val detail = result.unscheduledActivities.takeIf { it.isNotEmpty() }
-                ?.joinToString(separator = "\n") { "• $it" }
-                ?: "Add subjects, study-hour targets, and free-time slots to generate a plan."
+            val detail = buildString {
+                if (result.restDays.isNotEmpty()) {
+                    append("Rest days — no study time available:\n")
+                    result.restDays.forEach { date ->
+                        append("• ")
+                        append(date.format(DateTimeFormatter.ofPattern("EEEE, MMM d")))
+                        append('\n')
+                    }
+                }
+                if (result.unscheduledActivities.isNotEmpty()) {
+                    if (isNotEmpty()) append('\n')
+                    append("Not scheduled:\n")
+                    result.unscheduledActivities.forEach {
+                        append("• ")
+                        append(it)
+                        append('\n')
+                    }
+                }
+                if (isEmpty()) {
+                    append("Add subjects, study-hour targets, and free-time slots to generate a plan.")
+                }
+            }.trim()
             AlertDialog.Builder(requireContext())
                 .setTitle("No sessions to schedule")
                 .setMessage(detail)
@@ -319,18 +342,69 @@ class ScheduleFragment : Fragment() {
             return
         }
         val preview = buildString {
-            result.proposedSessions.forEach { session ->
-                append(session.sessionDate)
-                append(" · ")
-                append(formatTime(session.startMinutes))
-                append("–")
-                append(formatTime(session.endMinutes))
-                append(" · ")
-                append(session.description)
-                append('\n')
+            val sessionsByDate = result.proposedSessions
+                .groupBy { it.sessionDate }
+            val restDateStrings = result.restDays.mapTo(mutableSetOf()) { it.toString() }
+            val previewDates = (0L..6L)
+                .map(currentWeek::plusDays)
+                .filterNot { it.isBefore(LocalDate.now()) }
+            previewDates.forEach { previewDate ->
+                    val date = previewDate.toString()
+                    append(
+                        previewDate.format(
+                            DateTimeFormatter.ofPattern("EEEE, MMM d")
+                        )
+                    )
+                    append('\n')
+                    val sessions = sessionsByDate[date].orEmpty()
+                        .sortedBy { it.startMinutes }
+                    if (date in restDateStrings) {
+                        append("  Rest day — no free time available.\n")
+                    } else if (sessions.isEmpty()) {
+                        append("  No study sessions planned.\n")
+                    }
+                    val breaks = result.breaksByDate[previewDate].orEmpty()
+                    val events = (sessions.map { session ->
+                        PreviewEvent(
+                            startMinutes = session.startMinutes,
+                            endMinutes = session.endMinutes,
+                            description = session.description.ifBlank { session.subjectName }
+                                .let { title ->
+                                    if (session.description.isNotBlank() &&
+                                        session.description != session.subjectName
+                                    ) {
+                                        "$title · ${session.subjectName}"
+                                    } else {
+                                        title
+                                    }
+                                },
+                            isBreak = false
+                        )
+                    } + breaks.map { interval ->
+                        PreviewEvent(
+                            startMinutes = interval.startMinutes,
+                            endMinutes = interval.endMinutes,
+                            description = "Break — recharge",
+                            isBreak = true
+                        )
+                    }).sortedBy { it.startMinutes }
+                    events.forEach { event ->
+                        append("  ")
+                        append(formatTime(event.startMinutes))
+                        append("–")
+                        append(formatTime(event.endMinutes))
+                        append("  ")
+                        append(event.description)
+                        if (event.isBreak) {
+                            append(" (${event.endMinutes - event.startMinutes} min)")
+                        }
+                        append('\n')
+                    }
+                    append('\n')
             }
+            append("${result.proposedSessions.size} sessions will be added to your schedule.")
             if (result.unscheduledActivities.isNotEmpty()) {
-                append("\nNot scheduled:\n")
+                append("\n\nNot scheduled:\n")
                 result.unscheduledActivities.forEach {
                     append("• ")
                     append(it)
@@ -339,29 +413,41 @@ class ScheduleFragment : Fragment() {
             }
         }
         val text = TextView(requireContext()).apply {
-            setPadding(dp(20), dp(8), dp(20), dp(8))
+            setPadding(dp(20), dp(12), dp(20), dp(12))
             this.text = preview
         }
-        AlertDialog.Builder(requireContext())
+        val dialog = AlertDialog.Builder(requireContext())
             .setTitle("Review proposed study plan")
             .setView(ScrollView(requireContext()).apply { addView(text) })
             .setNegativeButton("Cancel", null)
-            .setPositiveButton("Accept & save") { _, _ ->
+            .setPositiveButton("Save plan", null)
+            .create()
+        dialog.setOnShowListener {
+            val saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            saveButton.setOnClickListener {
+                saveButton.isEnabled = false
+                saveButton.text = "Saving..."
                 viewLifecycleOwner.lifecycleScope.launch {
                     try {
                         scheduleRepository.saveGeneratedSessions(result.proposedSessions)
+                        dialog.dismiss()
                         Toast.makeText(
                             requireContext(),
-                            "Study plan saved",
-                            Toast.LENGTH_SHORT
+                            "${result.proposedSessions.size} sessions added to My Schedule",
+                            Toast.LENGTH_LONG
                         ).show()
                     } catch (exception: Exception) {
                         if (exception is CancellationException) throw exception
                         showError("Could not save study plan", exception)
+                        if (_binding != null && dialog.isShowing) {
+                            saveButton.isEnabled = true
+                            saveButton.text = "Retry save"
+                        }
                     }
                 }
             }
-            .show()
+        }
+        dialog.show()
     }
 
     private fun chooseTime(initial: Int, onSelected: (Int) -> Unit) {
@@ -392,11 +478,11 @@ class ScheduleFragment : Fragment() {
                     getString(R.string.firestore_index_building)
                 exception is FirebaseFirestoreException &&
                     exception.code == FirebaseFirestoreException.Code.PERMISSION_DENIED ->
-                    getString(R.string.firestore_access_denied)
+                    "Firestore denied the save. Deploy firestore.rules to Firebase project studyplanner-5337f with `firebase deploy --only firestore:rules --project studyplanner-5337f`, then check that every linked subject and task belongs to your account."
                 exception is FirebaseFirestoreException &&
                     exception.code == FirebaseFirestoreException.Code.UNAVAILABLE ->
                     getString(R.string.firestore_connection_error)
-                else -> getString(R.string.operation_try_again)
+                else -> exception.localizedMessage ?: getString(R.string.operation_try_again)
             }
             Toast.makeText(
                 requireContext(),
@@ -417,6 +503,13 @@ class ScheduleFragment : Fragment() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    private data class PreviewEvent(
+        val startMinutes: Int,
+        val endMinutes: Int,
+        val description: String,
+        val isBreak: Boolean
+    )
 
     companion object {
         private const val TAG = "ScheduleFragment"

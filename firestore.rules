@@ -15,13 +15,11 @@ service cloud.firestore {
 
     function ownsSubject(subjectId) {
       return signedIn()
-        && exists(/databases/$(database)/documents/subjects/$(subjectId))
         && get(/databases/$(database)/documents/subjects/$(subjectId)).data.userId == request.auth.uid;
     }
 
     function ownsTask(taskId) {
       return signedIn()
-        && exists(/databases/$(database)/documents/tasks/$(taskId))
         && get(/databases/$(database)/documents/tasks/$(taskId)).data.userId == request.auth.uid;
     }
 
@@ -33,6 +31,11 @@ service cloud.firestore {
           || request.resource.data.taskId == ''
           || ownsTask(request.resource.data.taskId)
         );
+    }
+
+    function ownsGeneratedScheduleId(sessionId) {
+      return signedIn()
+        && sessionId.matches('^' + request.auth.uid + '_[0-9a-f-]{36}$');
     }
 
     match /users/{userId} {
@@ -61,7 +64,9 @@ service cloud.firestore {
     }
 
     match /schedules/{sessionId} {
-      allow read, delete: if ownsStoredRecord();
+      allow get: if ownsStoredRecord()
+        || (resource == null && ownsGeneratedScheduleId(sessionId));
+      allow list, delete: if ownsStoredRecord();
       allow create: if ownsRequestedRecord()
         && validScheduleReferences()
         && request.resource.data.startMinutes is int
